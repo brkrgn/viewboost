@@ -1,5 +1,29 @@
 import { useState, useEffect, useRef } from "react";
 
+// ── Paddle Config ─────────────────────────────────────────────────────────────
+const PADDLE_CLIENT_TOKEN = "live_0d2c3a9bad0fd59ffbf68ab6a2f";
+const PADDLE_PRICES = {
+  daily:  "pri_01kw6jzqzfdht8s6cwkkr036t9",  // $0.99 Günlük Boost
+  weekly: "pri_01kw6k23w2dqhkzy32k3sma0am",  // $2.99 Haftalık Pro
+};
+
+function initPaddle() {
+  if (window.Paddle) {
+    window.Paddle.Initialize({ token: PADDLE_CLIENT_TOKEN });
+  }
+}
+
+function openPaddleCheckout(priceId, onSuccess) {
+  if (!window.Paddle) { alert("Ödeme sistemi yükleniyor, lütfen tekrar deneyin."); return; }
+  window.Paddle.Checkout.open({
+    items: [{ priceId, quantity: 1 }],
+    settings: { theme: "dark", locale: "tr" },
+    eventCallback: (event) => {
+      if (event.name === "checkout.completed") { onSuccess(); }
+    },
+  });
+}
+
 // ── Mock Data ────────────────────────────────────────────────────────────────
 const MOCK_USER = {
   id: "u1", name: "Ahmet Yılmaz",
@@ -45,7 +69,7 @@ const I = {
 };
 
 // ── Paywall Screen ───────────────────────────────────────────────────────────
-function PaywallScreen({ onUpgrade, onClose, videosWatched }) {
+function PaywallScreen({ onUpgrade, onClose, videosWatched, paymentLoading }) {
   const OFFER_SECONDS = 10 * 60; // 10 dakika
   const [secs, setSecs] = useState(OFFER_SECONDS);
   const [selectedPlan, setSelectedPlan] = useState("weekly");
@@ -155,10 +179,14 @@ function PaywallScreen({ onUpgrade, onClose, videosWatched }) {
         </div>
 
         {/* CTA */}
-        <button style={{ ...pw.ctaBtn, background: plans.find(p=>p.id===selectedPlan)?.color || "#4361ee" }}
-          onClick={() => onUpgrade(selectedPlan)}>
-          <Icon d={I.zap} size={20} color="#fff" fill="#fff"/>
-          {selectedPlan==="daily" ? "$0.99 ile Bugün Başla" : "$2.99 ile Haftalık Pro'ya Geç"}
+        <button style={{ ...pw.ctaBtn, background: plans.find(p=>p.id===selectedPlan)?.color || "#4361ee", opacity: paymentLoading ? 0.7 : 1 }}
+          onClick={() => !paymentLoading && onUpgrade(selectedPlan)}
+          disabled={paymentLoading}>
+          {paymentLoading
+            ? <span style={s.spinner}/>
+            : <><Icon d={I.zap} size={20} color="#fff" fill="#fff"/>
+              {selectedPlan==="daily" ? "$0.99 ile Bugün Başla" : "$2.99 ile Haftalık Pro'ya Geç"}</>
+          }
         </button>
 
         <p style={pw.terms}>İstediğin zaman iptal edebilirsin · Güvenli ödeme</p>
@@ -608,6 +636,9 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("feed");
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+
+  useEffect(() => { initPaddle(); }, []);
 
   if(!user) return <LoginScreen onLogin={setUser}/>;
 
@@ -618,9 +649,14 @@ export default function App() {
   ];
 
   const handleUpgrade = (plan) => {
-    setShowPaywall(false);
-    setUser(u=>({...u, isPro:true}));
-    // In real app: trigger payment here
+    const priceId = PADDLE_PRICES[plan];
+    setPaymentLoading(true);
+    openPaddleCheckout(priceId, () => {
+      setShowPaywall(false);
+      setPaymentLoading(false);
+      setUser(u => ({ ...u, isPro: true }));
+    });
+    setTimeout(() => setPaymentLoading(false), 3000);
   };
 
   return (
@@ -630,6 +666,7 @@ export default function App() {
           videosWatched={user.videosWatched}
           onUpgrade={handleUpgrade}
           onClose={()=>setShowPaywall(false)}
+          paymentLoading={paymentLoading}
         />
       )}
 

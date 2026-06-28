@@ -632,7 +632,68 @@ function LoginScreen({ onLogin }) {
 }
 
 // ── Main App ─────────────────────────────────────────────────────────────────
+// ── Static Pages ──────────────────────────────────────────────────────────────
+function TermsPage() {
+  return (
+    <div style={{fontFamily:"Inter,sans-serif",background:"#0f0f0f",color:"#ccc",maxWidth:700,margin:"0 auto",padding:"40px 20px",lineHeight:1.8,minHeight:"100vh"}}>
+      <a href="/" style={{color:"#4361ee",fontSize:14}}>← Ana Sayfa</a>
+      <h1 style={{color:"#fff",fontSize:28,margin:"20px 0 8px"}}>Kullanım Şartları</h1>
+      <p>Son güncelleme: Haziran 2026</p>
+      <h2 style={{color:"#fff",fontSize:18,marginTop:32}}>1. Kabul</h2>
+      <p>ViewBoost'u kullanarak bu şartları kabul etmiş sayılırsınız.</p>
+      <h2 style={{color:"#fff",fontSize:18,marginTop:32}}>2. Hizmet</h2>
+      <p>ViewBoost, kullanıcıların YouTube videolarını izleyerek puan kazandığı ve bu puanları kendi videolarını tanıtmak için kullandığı bir platformdur.</p>
+      <h2 style={{color:"#fff",fontSize:18,marginTop:32}}>3. Ödemeler</h2>
+      <p>Pro üyelik ödemeleri Paddle aracılığıyla güvenli şekilde işlenir. Fiyatlar USD cinsindendir.</p>
+      <h2 style={{color:"#fff",fontSize:18,marginTop:32}}>4. Yasaklı Kullanım</h2>
+      <p>Bot kullanımı ve sahte etkileşim yasaktır.</p>
+      <h2 style={{color:"#fff",fontSize:18,marginTop:32}}>5. İletişim</h2>
+      <p>support@viewboost.app</p>
+    </div>
+  );
+}
+
+function PrivacyPage() {
+  return (
+    <div style={{fontFamily:"Inter,sans-serif",background:"#0f0f0f",color:"#ccc",maxWidth:700,margin:"0 auto",padding:"40px 20px",lineHeight:1.8,minHeight:"100vh"}}>
+      <a href="/" style={{color:"#4361ee",fontSize:14}}>← Ana Sayfa</a>
+      <h1 style={{color:"#fff",fontSize:28,margin:"20px 0 8px"}}>Gizlilik Politikası</h1>
+      <p>Son güncelleme: Haziran 2026</p>
+      <h2 style={{color:"#fff",fontSize:18,marginTop:32}}>1. Topladığımız Bilgiler</h2>
+      <p>YouTube hesap bilgileri, kullanım verileri ve ödeme bilgileri (Paddle tarafından işlenir).</p>
+      <h2 style={{color:"#fff",fontSize:18,marginTop:32}}>2. Kullanım</h2>
+      <p>Bilgileriniz yalnızca hizmetin sunulması amacıyla kullanılır, üçüncü taraflarla paylaşılmaz.</p>
+      <h2 style={{color:"#fff",fontSize:18,marginTop:32}}>3. Güvenlik</h2>
+      <p>Ödemeler Paddle'ın güvenli altyapısı üzerinden işlenir.</p>
+      <h2 style={{color:"#fff",fontSize:18,marginTop:32}}>4. İletişim</h2>
+      <p>support@viewboost.app</p>
+    </div>
+  );
+}
+
+function RefundPage() {
+  return (
+    <div style={{fontFamily:"Inter,sans-serif",background:"#0f0f0f",color:"#ccc",maxWidth:700,margin:"0 auto",padding:"40px 20px",lineHeight:1.8,minHeight:"100vh"}}>
+      <a href="/" style={{color:"#4361ee",fontSize:14}}>← Ana Sayfa</a>
+      <h1 style={{color:"#fff",fontSize:28,margin:"20px 0 8px"}}>İade Politikası</h1>
+      <p>Son güncelleme: Haziran 2026</p>
+      <h2 style={{color:"#fff",fontSize:18,marginTop:32}}>1. İade Süresi</h2>
+      <p>Satın alma tarihinden itibaren 7 gün içinde iade talep edebilirsiniz.</p>
+      <h2 style={{color:"#fff",fontSize:18,marginTop:32}}>2. İade Süreci</h2>
+      <p>support@viewboost.app adresine yazın, 3-5 iş günü içinde işleme alınır.</p>
+      <h2 style={{color:"#fff",fontSize:18,marginTop:32}}>3. İade Yöntemi</h2>
+      <p>İadeler orijinal ödeme yönteminize yapılır.</p>
+    </div>
+  );
+}
+
 export default function App() {
+  // Simple client-side routing for policy pages
+  const path = window.location.pathname;
+  if (path === "/terms") return <TermsPage />;
+  if (path === "/privacy") return <PrivacyPage />;
+  if (path === "/refund") return <RefundPage />;
+
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("feed");
   const [showPaywall, setShowPaywall] = useState(false);

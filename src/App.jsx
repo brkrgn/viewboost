@@ -626,6 +626,11 @@ function LoginScreen({ onLogin }) {
           YouTube ile Giriş Yap
         </button>
         <p style={s.disclaimer}>Demo modunda çalışmaktadır.</p>
+        <div style={{display:"flex",justifyContent:"center",gap:16,marginTop:16}}>
+          <a href="/terms" style={{color:"#555",fontSize:11,textDecoration:"none"}}>Kullanım Şartları</a>
+          <a href="/privacy" style={{color:"#555",fontSize:11,textDecoration:"none"}}>Gizlilik</a>
+          <a href="/refund" style={{color:"#555",fontSize:11,textDecoration:"none"}}>İade Politikası</a>
+        </div>
       </div>
     </div>
   );

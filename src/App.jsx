@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { loginWithGoogle, logout, watchAuthState, getUserData, addPoints, spendPoints, incrementVideosWatched, setProStatus, submitVideo } from "./firebase.js";
 
 // ── Paddle Config ─────────────────────────────────────────────────────────────
 const PADDLE_CLIENT_TOKEN = "live_0d2c3a9bad0fd59ffbf68ab6a2f";
@@ -323,6 +324,18 @@ function VideoCard({ video, onComplete, onSkip, isPro }) {
   );
 }
 
+// ── Ad Banner (placeholder — gerçek reklam kodu Google AdSense/AdMob onayı sonrası buraya eklenir) ──
+function AdBanner() {
+  return (
+    <div style={{
+      background:"#1a1a1a", border:"1px dashed #333", borderRadius:14,
+      padding:"16px", textAlign:"center", marginBottom:10, color:"#666", fontSize:12
+    }}>
+      📢 Reklam Alanı — Pro ol, reklamsız izle
+    </div>
+  );
+}
+
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function PointToast({ msg, onDone }) {
   useEffect(()=>{const t=setTimeout(onDone,2200);return()=>clearTimeout(t);},[]);
@@ -362,12 +375,15 @@ function FeedTab({ user, setUser, onShowPaywall }) {
     setTimeout(()=>{ setSwipeDir(null); setCurrent(c=>c+1); },350);
   };
 
-  const handleComplete = pts => {
+  const handleComplete = async (pts) => {
     if(pts>0){
       setUser(u=>({...u, points:u.points+pts, videosWatched:u.videosWatched+1}));
       setSessionPts(p=>p+pts);
       addToast(`+${pts} puan kazandın! 🎉`);
       const newCount = user.videosWatched + 1;
+      // Persist to Firestore (fire-and-forget, UI already updated optimistically)
+      addPoints(user.uid, pts).catch(console.error);
+      incrementVideosWatched(user.uid).catch(console.error);
       // Milestone her 5 videoda, ücretsiz kullanıcı için paywall
       if(!user.isPro && newCount % 5 === 0){
         setTimeout(()=>{ setShowMilestone(true); }, 800);
@@ -432,6 +448,9 @@ function FeedTab({ user, setUser, onShowPaywall }) {
         </button>
       )}
 
+      {/* Ad banner — non-pro only, every 2nd video */}
+      {!user.isPro && current % 2 === 1 && <AdBanner/>}
+
       {/* Milestone */}
       {showMilestone && !user.isPro && (
         <MilestoneBanner count={user.videosWatched} onUpgrade={()=>{ setShowMilestone(false); onShowPaywall(); }}/>
@@ -464,12 +483,20 @@ function SubmitTab({ user, setUser, onShowPaywall }) {
     { pts:200, label:"Premium",   views:"~60 izlenme" },
   ];
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if(!url.trim()){ setError("YouTube URL giriniz."); return; }
     if(!title.trim()){ setError("Video başlığı giriniz."); return; }
     if(user.points < cost){ setError("Yeterli puanın yok!"); return; }
-    setError(""); setUser(u=>({...u,points:u.points-cost})); setSuccess(true);
-    setUrl(""); setTitle(""); setTimeout(()=>setSuccess(false),3500);
+    setError("");
+    try {
+      await submitVideo(user.uid, { url, title }, cost);
+      setUser(u=>({...u,points:u.points-cost}));
+      setSuccess(true);
+      setUrl(""); setTitle(""); setTimeout(()=>setSuccess(false),3500);
+    } catch (e) {
+      console.error(e);
+      setError("Bir hata oluştu, tekrar dene.");
+    }
   };
 
   return (
@@ -590,7 +617,25 @@ function ProfileTab({ user, onLogout, onShowPaywall }) {
 // ── Login ────────────────────────────────────────────────────────────────────
 function LoginScreen({ onLogin }) {
   const [loading, setLoading] = useState(false);
-  const handle = ()=>{ setLoading(true); setTimeout(()=>{ setLoading(false); onLogin(MOCK_USER); },1800); };
+  const [error, setError] = useState("");
+
+  const handle = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const { uid, isNew } = await loginWithGoogle();
+      const userData = await getUserData(uid);
+      onLogin(userData);
+    } catch (err) {
+      console.error(err);
+      if (err.code === "auth/popup-closed-by-user") {
+        setError("Giriş penceresi kapatıldı, tekrar dene.");
+      } else {
+        setError("Giriş başarısız oldu, tekrar dene.");
+      }
+    }
+    setLoading(false);
+  };
   return (
     <div style={s.loginBg}>
       <div style={s.loginCard}>
@@ -625,12 +670,8 @@ function LoginScreen({ onLogin }) {
           )}
           YouTube ile Giriş Yap
         </button>
-        <p style={s.disclaimer}>Demo modunda çalışmaktadır.</p>
-        <div style={{display:"flex",justifyContent:"center",gap:16,marginTop:16}}>
-          <a href="/terms" style={{color:"#555",fontSize:11,textDecoration:"none"}}>Kullanım Şartları</a>
-          <a href="/privacy" style={{color:"#555",fontSize:11,textDecoration:"none"}}>Gizlilik</a>
-          <a href="/refund" style={{color:"#555",fontSize:11,textDecoration:"none"}}>İade Politikası</a>
-        </div>
+        {error && <p style={{textAlign:"center",color:"#ff4466",fontSize:13,marginTop:12}}>{error}</p>}
+        <p style={s.disclaimer}>Google hesabınla güvenli giriş.</p>
       </div>
     </div>
   );
@@ -700,11 +741,39 @@ export default function App() {
   if (path === "/refund") return <RefundPage />;
 
   const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [tab, setTab] = useState("feed");
   const [showPaywall, setShowPaywall] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
 
-  useEffect(() => { initPaddle(); }, []);
+  useEffect(() => {
+    initPaddle();
+    const unsub = watchAuthState(async (firebaseUser) => {
+      if (firebaseUser) {
+        const userData = await getUserData(firebaseUser.uid);
+        if (userData) {
+          // Check if Pro subscription expired
+          if (userData.isPro && userData.proExpiresAt && Date.now() > userData.proExpiresAt) {
+            await setProStatus(firebaseUser.uid, false, null);
+            userData.isPro = false;
+          }
+          setUser(userData);
+        }
+      } else {
+        setUser(null);
+      }
+      setAuthLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  if (authLoading) {
+    return (
+      <div style={{...s.app, alignItems:"center", justifyContent:"center", display:"flex"}}>
+        <span style={s.spinner}/>
+      </div>
+    );
+  }
 
   if(!user) return <LoginScreen onLogin={setUser}/>;
 
@@ -717,10 +786,13 @@ export default function App() {
   const handleUpgrade = (plan) => {
     const priceId = PADDLE_PRICES[plan];
     setPaymentLoading(true);
-    openPaddleCheckout(priceId, () => {
+    openPaddleCheckout(priceId, async () => {
       setShowPaywall(false);
       setPaymentLoading(false);
-      setUser(u => ({ ...u, isPro: true }));
+      const days = plan === "daily" ? 1 : 7;
+      const expiresAt = Date.now() + days * 24 * 60 * 60 * 1000;
+      await setProStatus(user.uid, true, expiresAt);
+      setUser(u => ({ ...u, isPro: true, proExpiresAt: expiresAt }));
     });
     setTimeout(() => setPaymentLoading(false), 3000);
   };
@@ -753,7 +825,7 @@ export default function App() {
       <div style={s.content}>
         {tab==="feed"    && <FeedTab    user={user} setUser={setUser} onShowPaywall={()=>setShowPaywall(true)}/>}
         {tab==="submit"  && <SubmitTab  user={user} setUser={setUser} onShowPaywall={()=>setShowPaywall(true)}/>}
-        {tab==="profile" && <ProfileTab user={user} onLogout={()=>setUser(null)} onShowPaywall={()=>setShowPaywall(true)}/>}
+        {tab==="profile" && <ProfileTab user={user} onLogout={async ()=>{ await logout(); setUser(null); }} onShowPaywall={()=>setShowPaywall(true)}/>}
       </div>
 
       <div style={s.navBar}>
